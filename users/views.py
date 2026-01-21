@@ -18,6 +18,24 @@ def get_cache_key(prefix, identifier=None):
     return prefix
 
 
+def invalidate_user_cache(user_id=None):
+    """
+    Invalidate user-related cache entries.
+    
+    Args:
+        user_id: Optional specific user ID to invalidate. 
+                If None, clears all user cache.
+    """
+    if user_id:
+        # Clear cache for specific user
+        cache.delete(get_cache_key('user', user_id))
+        print(f"🗑️ Invalidated cache for user {user_id}")
+    else:
+        # Clear all user list cache
+        cache.delete(get_cache_key('user_list'))
+        print("🗑️ Invalidated user list cache")
+
+
 @api_view(['GET'])
 def cache_stats(request):
     """Get cache statistics"""
@@ -97,6 +115,27 @@ class UserViewSet(viewsets.ModelViewSet):
         cache.set(cache_key, response.data, timeout=settings.CACHE_TTL)
         print(f"💾 Cached data for {cache_key}")
         
+        return response
+    
+    def create(self, request, *args, **kwargs):
+        """Create user and invalidate user list cache"""
+        response = super().create(request, *args, **kwargs)
+        invalidate_user_cache()  # Clear the user list cache
+        return response
+    
+    def update(self, request, *args, **kwargs):
+        """Update user and invalidate specific user cache"""
+        user_id = kwargs.get('pk')
+        response = super().update(request, *args, **kwargs)
+        invalidate_user_cache(user_id)  # Clear cache for updated user
+        return response
+    
+    def destroy(self, request, *args, **kwargs):
+        """Delete user and invalidate cache entries"""
+        user_id = kwargs.get('pk')
+        response = super().destroy(request, *args, **kwargs)
+        invalidate_user_cache(user_id)  # Clear cache for deleted user
+        invalidate_user_cache()  # Also clear user list cache
         return response
     
     def perform_create(self, serializer):
